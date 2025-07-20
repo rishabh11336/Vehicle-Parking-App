@@ -3,7 +3,7 @@ from app.models.models import db,User,ParkingLot,ParkingSpot,Booking
 from app.cache import cache
 
 from datetime import datetime, date, timedelta
-from flask_jwt_extended import  jwt_required, get_jwt_identity
+from flask_jwt_extended import  current_user, jwt_required, get_jwt_identity
 from flask import request, jsonify
 
 
@@ -13,7 +13,6 @@ from flask import request, jsonify
 def veiw_lot(lot_id):
     infos = ParkingSpot.query.filter_by(lot_id=lot_id)
     return jsonify([info.serialize() for info in infos])
-
 
 
 @app.route("/user_profile", methods=["GET"])
@@ -44,8 +43,6 @@ def edit_user_profile():
     return jsonify({"msg": "User profile updated successfully!"}), 200
 
 
-
-
 @app.route("/user_bookings", methods=["GET"])
 @jwt_required()
 @cache.cached(timeout=300, query_string=True)
@@ -56,9 +53,6 @@ def user_bookings():
         return jsonify({"msg": "User not found"}), 404
     user_bookings = Booking.query.filter_by(user_id=user.id).all()
     return jsonify([booking.serialize() for booking in user_bookings])
-
-
-
 
 
 @app.route("/book_slot/<int:lot_id>",methods=["POST"])
@@ -106,17 +100,17 @@ def book_slot(lot_id):
     db.session.add(booking)
     db.session.commit()
     return jsonify({"msg":"Booking Sucessfull"})
-
     
 
 @app.route("/cancel_booking/<int:booking_id>", methods=["PATCH"])
 @jwt_required()
 def cancel_booking(booking_id):
     cache.clear()
+
     update_booking = Booking.query.filter_by(id=booking_id).first()
     if not update_booking:
         return jsonify({"msg": "Booking not found!"}), 404
-    spot = ParkingSpot.query.get(update_booking.spot_id)
+    spot = ParkingSpot.query.filter_by(spot_number=update_booking.spot_id, lot_id=update_booking.lot_id).first()
     # data = request.get_json()    
     # update_booking.status = data.get('status', update_booking.status)
     update_booking.status = 'canceled'
@@ -124,8 +118,6 @@ def cancel_booking(booking_id):
         spot.status = 'available'
     db.session.commit()
     return jsonify({"msg": "Booking canceled successfully!"})
-
-
 
 
 @app.route("/check_in/<int:lot_id>/<string:vehicle_number>", methods=["POST"])
@@ -175,7 +167,6 @@ def user_check_in(lot_id, vehicle_number):
         }), 201
 
 
-
 @app.route("/booking_status/<int:booking_id>", methods=["PATCH"])
 @jwt_required()
 def booking_status(booking_id):
@@ -194,9 +185,6 @@ def booking_status(booking_id):
     Parking_spot.status = data['status']
     db.session.commit()
     return jsonify({"msg": "Paking Exited successfully"})
-
-
-
 
 
 @app.route("/parking_lots", methods=["GET"])
@@ -223,9 +211,6 @@ def get_all_lots():
     return jsonify(results)
 
 
-
-
-
 @app.route("/parking_spot/<int:lot_id>/<int:spot_id>", methods=["GET"])
 @jwt_required()
 @cache.cached(timeout=300, query_string=True)
@@ -241,15 +226,12 @@ def get_single_lot(lot_id,spot_id):
     return jsonify(spot_data)
 
 
-
-
 def check_booking(vehicle_number,lot_id,start_time,end_time):
     booking_check = Booking.query.filter_by(vehicle_number=vehicle_number,lot_id=lot_id)
     for book in booking_check:
         if (book.start_time < start_time) and (book.end_time > end_time):
             return True  
     return False        
-
 
 
 @app.route("/user_summary", methods=["GET"])
@@ -261,3 +243,14 @@ def user_summary():
         return jsonify({"msg": "User not found"}), 404
     user_bookings = Booking.query.filter_by(user_id=user.id).all()
     return jsonify([booking.serialize() for booking in user_bookings])
+
+
+@app.route('/user/booking-details/<int:id>', methods=["GET"])
+@jwt_required()
+def booking_details(id):
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email = current_user_email).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    _booking = Booking.query.filter_by(user_id=user.id, id=id) #status='occupied'
+    return jsonify([booking.serialize() for booking in _booking])
