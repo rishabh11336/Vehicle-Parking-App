@@ -8,7 +8,7 @@
           <i class="bi bi-arrow-left-circle me-2"></i>Back to My Dashboard
         </router-link>
       </div>
-      
+
       <div v-if="booking">
         <div class="row g-4">
           <div class="col-lg-8">
@@ -21,7 +21,7 @@
                 <span :class="`badge fs-6 ${getStatusClass(booking.status)}`">{{ booking.status }}</span>
               </div>
               <hr>
-              
+
               <div class="row">
                 <div class="col-sm-6 mb-3">
                   <strong class="text-muted d-block">Vehicle Number</strong>
@@ -39,52 +39,66 @@
                   <strong class="text-muted d-block">End Date & Time</strong>
                   <span>{{ booking.endDate }} at {{ booking.endTime }}</span>
                 </div>
+                <div class="col-sm-6 mb-3" v-if="booking.checkInTime">
+                  <strong class="text-muted d-block">Check-in Date & Time</strong>
+                  <span>{{ formatDate(booking.checkInTime) }} at {{ formatTime(booking.checkInTime) }}</span>
+                </div>
+                <div class="col-sm-6 mb-3" v-if="booking.checkOutTime">
+                  <strong class="text-muted d-block">Check-out Date & Time</strong>
+                  <span>{{ formatDate(booking.checkOutTime) }} at {{ formatTime(booking.checkOutTime) }}</span>
+                </div>
               </div>
 
-              <div class="mt-3">
-                <h5 class="fw-semibold">Cost Summary</h5>
-                <ul class="list-group list-group-flush">
-                   <li class="list-group-item d-flex justify-content-between px-0">
-                    <span>Rate</span>
-                    <span>₹{{ booking.rateApplied.toFixed(2) }}/hr</span>
-                  </li>
-                  <li class="list-group-item d-flex justify-content-between px-0">
-                    <span>Duration</span>
-                    <span>{{ booking.duration }}</span>
-                  </li>
-                  <li class="list-group-item d-flex justify-content-between px-0 fw-bold">
-                    <span>Total Cost</span>
-                    <span v-if="booking.status === 'canceled'">Cancelled</span>
-                    <span v-else>₹{{ booking.totalCost.toFixed(2) }}</span>
-                  </li>
-                </ul>
               </div>
-            </div>
           </div>
           <div class="col-lg-4">
             <div class="card p-4">
               <h5 class="fw-semibold mb-3">Manage Booking</h5>
               <div class="d-grid gap-2">
-                <button class="btn btn-outline-primary" @click="handleAction('change')" :disabled="booking.status !== 'Active'">
+                <button class="btn btn-outline-primary" @click="handleAction('change')"
+                  :disabled="booking.status !== 'Active'">
                   <i class="bi bi-pencil-square me-2"></i>Change Booking
                 </button>
-                <button class="btn btn-outline-danger" @click="handleAction('cancel')" :disabled="booking.status !== 'Active'">
+                <button class="btn btn-outline-danger" @click="handleAction('cancel')"
+                  :disabled="booking.status !== 'Active'">
                   <i class="bi bi-x-circle me-2"></i>Cancel Booking
                 </button>
-                <button class="btn btn-outline-warning text-dark" @click="handleAction('vacate')" :disabled="booking.status !== 'Parked'">
-                  <i class="bi bi-car-front-fill me-2"></i>Vacate Parking
+                <button class="btn btn-primary" @click="handleAction('checkin')"
+                  :disabled="booking.status !== 'Active'">
+                  <i class="bi bi-box-arrow-in-right me-2"></i>Check-in Vehicle
                 </button>
-                <button class="btn btn-success" @click="handleAction('release')" :disabled="booking.status !== 'Vacated'">
+                <button class="btn btn-success" @click="handleAction('releaseAndCheckout')"
+                  :disabled="booking.status !== 'occupied'">
                   <i class="bi bi-box-arrow-right me-2"></i>Release & Pay
                 </button>
               </div>
-              <p v-if="booking.status === 'Completed'" class="text-muted small mt-3 text-center">This booking is completed.</p>
+              <p v-if="booking.status === 'Completed'" class="text-muted small mt-3 text-center">This booking is
+                completed.</p>
             </div>
           </div>
         </div>
       </div>
       <div v-else class="text-center py-5">
         <p class="text-muted">Booking not found or an error occurred.</p>
+      </div>
+    </div>
+
+    <div v-if="showCostModal" class="modal fade show d-block" tabindex="-1" aria-labelledby="costModalLabel" aria-hidden="true" style="background-color: rgba(0,0,0,0.5);">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="costModalLabel">Payment Summary</h5>
+            <button type="button" class="btn-close" @click="showCostModal = false" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p class="fs-4">Your total payable amount is:</p>
+            <h4 class="fw-bold text-success display-5">₹{{ finalCost.toFixed(2) }}</h4>
+            <p class="text-muted mt-3">Thank you for using our parking service!</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" @click="showCostModal = false">OK</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -95,7 +109,7 @@
 <script>
 import Navbar from '../components/Navbar.vue';
 import Footer from '../components/Footer.vue';
-import axios from 'axios'; 
+import axios from 'axios';
 
 export default {
   name: 'BookingDetailsPage',
@@ -106,7 +120,71 @@ export default {
   data() {
     return {
       booking: null,
+      showCostModal: false, // Controls modal visibility
+      finalCost: 0, // Stores the final cost fetched from the API
     };
+  },
+  computed: {
+    // We keep these computed properties as they might still be useful internally
+    // or if you later decide to display them in a different context (e.g., in a "receipt" view)
+    calculatedDuration() {
+      if (!this.booking) return 'N/A';
+
+      let start = new Date(this.booking.startDate + ' ' + this.booking.startTime);
+      let end = new Date(this.booking.endDate + ' ' + this.booking.endTime);
+
+      if (this.booking.checkInTime) {
+        start = new Date(this.booking.checkInTime);
+      }
+
+      if (this.booking.status === 'occupied' && !this.booking.checkOutTime) {
+        end = new Date();
+      } else if (this.booking.checkOutTime) {
+        end = new Date(this.booking.checkOutTime);
+      }
+
+      const diffMs = end - start;
+
+      if (this.booking.bookingType === 'hourly') {
+        const diffHours = Math.max(0, diffMs / (1000 * 60 * 60));
+        return `${diffHours.toFixed(1)} Hours`;
+      } else if (this.booking.bookingType === 'daily') {
+        const diffDays = Math.max(0, diffMs / (1000 * 60 * 60 * 24));
+        return `${Math.ceil(diffDays)} Days`;
+      }
+      return 'N/A';
+    },
+
+    calculatedTotalCost() {
+      if (!this.booking || this.booking.status === 'canceled') return 0;
+
+      let start = new Date(this.booking.startDate + ' ' + this.booking.startTime);
+      let end = new Date(this.booking.endDate + ' ' + this.booking.endTime);
+
+      if (this.booking.checkInTime) {
+        start = new Date(this.booking.checkInTime);
+      }
+
+      if (this.booking.status === 'occupied' && !this.booking.checkOutTime) {
+        end = new Date();
+      } else if (this.booking.checkOutTime) {
+        end = new Date(this.booking.checkOutTime);
+      }
+
+      const diffMs = end - start;
+      const rate = this.booking.rateApplied;
+
+      if (diffMs < 0) return 0;
+
+      if (this.booking.bookingType === 'hourly') {
+        const diffHours = diffMs / (1000 * 60 * 60);
+        return diffHours * rate;
+      } else if (this.booking.bookingType === 'daily') {
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        return Math.ceil(diffDays) * rate;
+      }
+      return 0;
+    }
   },
   async created() {
     const bookingId = parseInt(this.$route.params.id);
@@ -117,10 +195,11 @@ export default {
   methods: {
     async fetchBookingDetails(id) {
       try {
-        const token = localStorage.getItem('authToken'); 
+        const token = localStorage.getItem('authToken');
         if (!token) {
-          console.error('Bearer token not found in local storage.');
-          // Redirect to login or handle authentication error
+          console.error('Authentication token not found. Redirecting to login.');
+          alert('Authentication error. Please log in again.');
+          this.$router.push('/login'); 
           return;
         }
 
@@ -131,7 +210,6 @@ export default {
         });
         const apiBooking = response.data[0]; 
 
-        
         this.booking = {
           id: apiBooking.id,
           location: apiBooking.lot_info.lot_name,
@@ -142,112 +220,186 @@ export default {
           endDate: this.formatDate(apiBooking.end_time),
           endTime: this.formatTime(apiBooking.end_time),
           rateApplied: apiBooking.lot_info.price_per_hour,
-          duration: this.calculateDuration(apiBooking.start_time, apiBooking.end_time, apiBooking.booking_type),
           totalCost: apiBooking.total_cost,
           status: apiBooking.status,
+          bookingType: apiBooking.booking_type,
+          checkInTime: apiBooking.check_in_time || null,
+          checkOutTime: apiBooking.check_out_time || null,
         };
       } catch (error) {
         console.error('Error fetching booking details:', error);
         this.booking = null; 
+        if (error.response) {
+          if (error.response.status === 401) {
+            alert('Session expired or unauthorized. Please log in again.');
+            this.$router.push('/login');
+          } else {
+            alert(`Failed to load booking details: ${error.response.data.message || error.message}. Please try again.`);
+          }
+        } else {
+          alert('A network error occurred while fetching booking details. Please check your connection.');
+        }
       }
     },
+
     formatDate(dateTimeString) {
       if (!dateTimeString) return 'N/A';
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString('en-CA'); 
+      try {
+        const date = new Date(dateTimeString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return date.toLocaleDateString('en-CA'); 
+      } catch (e) {
+        console.error("Error formatting date:", e);
+        return 'Error';
+      }
     },
+
     formatTime(dateTimeString) {
       if (!dateTimeString) return 'N/A';
-      const date = new Date(dateTimeString);
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    },
-    calculateDuration(startTime, endTime, bookingType) {
-      if (!startTime || !endTime) return 'N/A';
-
-      const start = new Date(startTime);
-      const end = new Date(endTime);
-      const diffMs = end - start; 
-
-      if (bookingType === 'hourly') {
-        const diffHours = diffMs / (1000 * 60 * 60);
-        return `${diffHours.toFixed(1)} Hours`;
-      } else if (bookingType === 'daily') {
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-        return `${Math.ceil(diffDays)} Days`; 
+      try {
+        const date = new Date(dateTimeString);
+        if (isNaN(date.getTime())) return 'Invalid Time';
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      } catch (e) {
+        console.error("Error formatting time:", e);
+        return 'Error';
       }
-      return 'N/A';
     },
-    async handleAction(actionType) { // Made async to await API calls
-      switch(actionType) {
+
+    async handleAction(actionType) {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.error('Authentication token not found. Redirecting to login.');
+        alert('Authentication error. Please log in again.');
+        this.$router.push('/login');
+        return;
+      }
+      const bookingId = this.booking.id;
+
+      try {
+        switch (actionType) {
           case 'change':
-              if(this.booking.status !== 'Active') {
-                  alert("Action not allowed. Vehicle is already parked or booking is completed.");
-              } else {
-                  alert(`'${actionType}' action initiated.`);
-                  // Here you would typically navigate to a change booking page
-              }
-              break;
+            if (this.booking.status !== 'Active') {
+              alert("You can only change bookings that are 'Active'.");
+            } else {
+              alert(`'Change Booking' action initiated for Booking ID #${bookingId}.`);
+            }
+            break;
+
           case 'cancel':
-              if(this.booking.status !== 'Active') {
-                  alert("Action not allowed. Booking is not active.");
-              } else {
-                  if (confirm("Are you sure you want to cancel this booking?")) {
-                      try {
-                          const token = localStorage.getItem('authToken');
-                          if (!token) {
-                              console.error('Bearer token not found in local storage.');
-                              alert('Authentication error. Please log in again.');
-                              return;
-                          }
-                          const bookingIdToCancel = this.booking.id;
-                          const response = await axios.patch(`http://127.0.0.1:5000/cancel_booking/${bookingIdToCancel}`, {}, {
-                              headers: {
-                                  'Authorization': `Bearer ${token}`
-                              }
-                          });
-                          if (response.status === 200) {
-                              alert("Booking cancelled successfully!");
-                              // Update the status locally or refetch booking details
-                              this.booking.status = 'canceled'; // Set to 'canceled' (lowercase)
-                              // Optionally, re-fetch booking details to ensure state is synchronized with backend
-                              // await this.fetchBookingDetails(bookingIdToCancel); 
-                          } else {
-                              alert("Failed to cancel booking. Please try again.");
-                          }
-                      } catch (error) {
-                          console.error('Error cancelling booking:', error);
-                          alert('An error occurred while trying to cancel the booking.');
-                      }
+            if (this.booking.status !== 'Active') {
+              alert("You can only cancel 'Active' bookings.");
+            } else {
+              if (confirm("Are you sure you want to cancel this booking? This action cannot be undone.")) {
+                const response = await axios.patch(`http://127.0.0.1:5000/cancel_booking/${bookingId}`, {}, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.status === 200) {
+                  alert("Booking cancelled successfully!");
+                  this.booking.status = 'canceled';
+                  if (response.data.booking && typeof response.data.booking.total_cost !== 'undefined') {
+                     this.booking.totalCost = response.data.booking.total_cost;
                   }
+                } else {
+                  alert(`Failed to cancel booking. Server responded with status: ${response.status}.`);
+                }
               }
-              break;
-          case 'vacate':
-              if(this.booking.status === 'Parked') {
-                  alert("Vehicle has been marked as vacated. You can now release the booking.");
-                  this.booking.status = 'Vacated'; 
-                  // Here you would typically make an API call to update the booking status to 'Vacated'
-              } else {
-                  alert("Action not allowed. Vehicle is not marked as parked.");
+            }
+            break;
+
+          case 'checkin':
+            if (this.booking.status !== 'Active') {
+              alert("You can only check in vehicles for 'Active' bookings.");
+            } else {
+              if (confirm("Are you sure you want to check-in this vehicle?")) {
+                const response = await axios.post(`http://127.0.0.1:5000/user/check_in/${bookingId}`, {}, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.status === 200) {
+                  alert("Vehicle checked in successfully! Status updated to 'occupied'.");
+                  this.booking.status = 'occupied'; 
+                  this.booking.checkInTime = response.data.booking.check_in_time;
+                } else {
+                  alert(`Failed to check-in vehicle. Server responded with status: ${response.status}.`);
+                }
               }
-              break;
-          case 'release':
-              if(this.booking.status !== 'Vacated') {
-                  alert("Action not allowed. Please vacate the parking spot first.");
-              } else {
-                  alert("Parking released and payment processed successfully!");
-                  this.booking.status = 'Completed';
-                  // Here you would typically make an API call to finalize the booking and process payment
+            }
+            break;
+
+          case 'releaseAndCheckout':
+            if (this.booking.status !== 'occupied') { 
+              alert("You can only release and check out vehicles that are currently 'occupied'.");
+              return;
+            }
+
+            if (confirm("Are you sure you want to check-out this vehicle and finalize payment?")) {
+              try {
+                console.log(`[Frontend Log] Attempting to call check_out API for booking ID: ${bookingId}`);
+                const checkoutResponse = await axios.post(`http://127.0.0.1:5000/user/check_out/${bookingId}`, {}, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (checkoutResponse.status === 200) {
+                  console.log('[Frontend Log] Check-out successful. Response:', checkoutResponse.data);
+                  alert("Vehicle checked out successfully!");
+                  
+                  if (checkoutResponse.data.booking) {
+                      this.booking.status = checkoutResponse.data.booking.status; 
+                      this.booking.checkOutTime = checkoutResponse.data.booking.check_out_time;
+                  }
+                  
+                  console.log(`[Frontend Log] Attempting to fetch final cost from _cost API for booking ID: ${bookingId}`);
+                  const costResponse = await axios.get(`http://127.0.0.1:5000/user/_cost/${bookingId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+
+                  // Ensure the response data has the 'total_cost' key and it's not undefined
+                  if (costResponse.status === 200 && typeof costResponse.data.total_cost !== 'undefined') {
+                    console.log('[Frontend Log] Final cost fetched successfully. Response:', costResponse.data);
+                    this.finalCost = costResponse.data.total_cost;
+                    // Update the totalCost property on the main booking object for consistency
+                    this.booking.totalCost = this.finalCost; 
+                    this.showCostModal = true; // Show the modal
+                  } else {
+                    console.error('[Frontend Log] Failed to fetch final cost from _cost API. Response:', costResponse);
+                    alert("Vehicle checked out, but we couldn't retrieve the final cost. Please check your dashboard or contact support.");
+                  }
+
+                } else {
+                  console.error('[Frontend Log] Check-out failed. Response:', checkoutResponse);
+                  alert(`Failed to check-out vehicle. Server responded with status: ${checkoutResponse.status}. Please check backend logs.`);
+                }
+              } catch (error) {
+                console.error('[Frontend Log] Error during "Release & Pay" process:', error);
+                if (error.response) {
+                  if (error.response.status === 401) {
+                    alert('Your session has expired or you are unauthorized. Please log in again.');
+                    this.$router.push('/login');
+                  } else if (error.response.data && error.response.data.message) {
+                    alert(`Action failed: ${error.response.data.message}`);
+                  } else {
+                    alert(`A server error occurred (Status: ${error.response.status}). Please try again.`);
+                  }
+                } else {
+                  alert('A network error occurred. Please check your internet connection and try again.');
+                }
               }
-              break;
+            }
+            break;
+        }
+      } catch (error) {
+        console.error('[Frontend Log] An unexpected error occurred in handleAction:', error);
+        // alert('An unexpected error occurred. Please try refreshing the page.');
       }
     },
+
     getStatusClass(status) {
-        if (status === 'Active') return 'bg-info text-dark';
-        if (status === 'Parked') return 'bg-success';
-        if (status === 'Vacated') return 'bg-warning text-dark'; 
-        if (status === 'Completed') return 'bg-secondary';
-        if (status === 'canceled') return 'bg-danger'; // Changed to 'canceled' (lowercase)
-        return 'bg-dark';
+      if (status === 'Active') return 'bg-info text-dark';
+      if (status === 'occupied') return 'bg-success';
+      if (status === 'Vacated') return 'bg-warning text-dark'; 
+      if (status === 'Completed') return 'bg-secondary';
+      if (status === 'canceled') return 'bg-danger';
+      return 'bg-dark'; 
     }
   }
 };
@@ -258,9 +410,81 @@ export default {
   border: 1px solid #e9ecef;
   border-radius: 0.75rem;
 }
+
 .list-group-item {
-    background-color: transparent;
-    padding-left: 0;
-    padding-right: 0;
+  background-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Modal Specific Styles - Crucial for visual display */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: rgba(0,0,0,0.5); /* Semi-transparent backdrop */
+  z-index: 1050; /* Ensures modal is on top */
+  display: flex; /* For centering */
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+}
+
+.modal-dialog {
+  position: relative;
+  width: auto;
+  margin: 1.75rem auto;
+  pointer-events: none; /* Allows clicks to pass through to backdrop unless content explicitly sets pointer-events: auto */
+  max-width: 500px; /* Standard modal width */
+}
+
+.modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0.3rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); /* Adds subtle shadow */
+  pointer-events: auto; /* Makes modal content clickable */
+  outline: 0; 
+}
+
+.modal-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1rem;
+  border-bottom: 1px solid #dee2e6;
+  border-top-left-radius: calc(0.3rem - 1px);
+  border-top-right-radius: calc(0.3rem - 1px);
+}
+
+.modal-title {
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
+.modal-body {
+  position: relative;
+  flex: 1 1 auto;
+  padding: 1rem;
+}
+
+.modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.75rem;
+  border-top: 1px solid #dee2e6;
+  border-bottom-right-radius: calc(0.3rem - 1px);
+  border-bottom-left-radius: calc(0.3rem - 1px);
 }
 </style>

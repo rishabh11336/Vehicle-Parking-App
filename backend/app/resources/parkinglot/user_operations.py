@@ -1,7 +1,8 @@
 from app.app import app
-from app.models.models import db,User,ParkingLot,ParkingSpot,Booking
+from app.models.models import db,User,ParkingLot,ParkingSpot,Booking, ReserveParkingSpot
 from app.cache import cache
 
+import math
 from datetime import datetime, date, timedelta
 from flask_jwt_extended import  current_user, jwt_required, get_jwt_identity
 from flask import request, jsonify
@@ -71,8 +72,12 @@ def book_slot(lot_id):
     end_time_obj = datetime.strptime(end_time_str, '%H:%M').time()
     start_datetime = datetime.combine(booking_date, start_time_obj)
     end_datetime = datetime.combine(booking_date, end_time_obj)
-### Check booking is a function available in a bottom 
-    check = check_booking(lot_id,vehicle_number,start_datetime,end_datetime)
+
+    if start_datetime < datetime.now():
+        return jsonify({"msg": "Booking time must be in the future!"}), 400
+
+    ### Check booking is a function available in a bottom
+    check = check_booking(lot_id, vehicle_number, start_datetime, end_datetime)
     if check:
         return jsonify({"msg": "Another booking already exists!"}), 404
     park_spot = ParkingSpot.query.filter_by(lot_id = lot_id, status="available")
@@ -82,7 +87,7 @@ def book_slot(lot_id):
     ###  WE are searching 1st empty spot from spots
     available_spot =  min([spot.spot_number for spot in park_spot])
     spot = ParkingSpot.query.filter_by(lot_id = lot_id, spot_number = available_spot).first()
-    spot.status = "occupied"
+    spot.status = "available"
     db.session.add(spot)
     db.session.flush()
     booking = Booking(vehicle_number = data["vehicle_number"],
@@ -114,57 +119,59 @@ def cancel_booking(booking_id):
     # data = request.get_json()    
     # update_booking.status = data.get('status', update_booking.status)
     update_booking.status = 'canceled'
+    update_booking.total_cost = 0
+    db.session.flush()
     if spot:
         spot.status = 'available'
     db.session.commit()
     return jsonify({"msg": "Booking canceled successfully!"})
 
 
-@app.route("/check_in/<int:lot_id>/<string:vehicle_number>", methods=["POST"])
-@jwt_required() 
-def user_check_in(lot_id, vehicle_number):
-    cache.clear()
-    user_id = 1 
-    current_time = datetime.now()
-    existing_booking = Booking.query.filter_by(vehicle_number=vehicle_number, status='active').first()
-    if existing_booking:
-        existing_booking.check_in_time = current_time
-        existing_booking.status = 'Parked'
-        spot = ParkingSpot.query.get(existing_booking.spot_id)
-        if spot:
-            spot.status = 'occupied'
-        db.session.commit()
-        return jsonify({
-            "msg": "Pre-booked check-in successful!",
-            "booking_id": existing_booking.id
-        }), 200
-    else:
-        available_spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='available').first()
-        if not available_spot:
-            return jsonify({"msg": "Sorry, this parking lot is full."}), 404            
-        # Create a new booking record on the spot.
-        new_booking = Booking(
-            vehicle_number=vehicle_number,
-            booking_type='direct',
-            booking_time=current_time,
-            check_in_time=current_time,
-            start_time=current_time,
-            end_time=current_time + timedelta(hours=1),
-            total_cost=0, 
-            status='Parked', 
-            user_id=user_id,
-            spot_id=available_spot.id,
-            lot_id=lot_id
-        )     
-        available_spot.status = 'occupied'
-        db.session.add(new_booking)
-        db.session.commit()
+# @app.route("/check_in/<int:lot_id>/<string:vehicle_number>", methods=["POST"])
+# @jwt_required() 
+# def user_check_in(lot_id, vehicle_number):
+#     cache.clear()
+#     user_id = 1 
+#     current_time = datetime.now()
+#     existing_booking = Booking.query.filter_by(vehicle_number=vehicle_number, status='active').first()
+#     if existing_booking:
+#         existing_booking.check_in_time = current_time
+#         existing_booking.status = 'Parked'
+#         spot = ParkingSpot.query.get(existing_booking.spot_id)
+#         if spot:
+#             spot.status = 'occupied'
+#         db.session.commit()
+#         return jsonify({
+#             "msg": "Pre-booked check-in successful!",
+#             "booking_id": existing_booking.id
+#         }), 200
+#     else:
+#         available_spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='available').first()
+#         if not available_spot:
+#             return jsonify({"msg": "Sorry, this parking lot is full."}), 404            
+#         # Create a new booking record on the spot.
+#         new_booking = Booking(
+#             vehicle_number=vehicle_number,
+#             booking_type='direct',
+#             booking_time=current_time,
+#             check_in_time=current_time,
+#             start_time=current_time,
+#             end_time=current_time + timedelta(hours=1),
+#             total_cost=0, 
+#             status='Parked', 
+#             user_id=user_id,
+#             spot_id=available_spot.id,
+#             lot_id=lot_id
+#         )     
+#         available_spot.status = 'occupied'
+#         db.session.add(new_booking)
+#         db.session.commit()
         
-        return jsonify({
-            "msg": "Walk-in check-in successful! A new booking has been created.",
-            "booking_id": new_booking.id,
-            "spot_number": available_spot.spot_number
-        }), 201
+#         return jsonify({
+#             "msg": "Walk-in check-in successful! A new booking has been created.",
+#             "booking_id": new_booking.id,
+#             "spot_number": available_spot.spot_number
+#         }), 201
 
 
 @app.route("/booking_status/<int:booking_id>", methods=["PATCH"])
@@ -189,10 +196,11 @@ def booking_status(booking_id):
 
 @app.route("/parking_lots", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+@cache.cached(timeout=10, query_string=True)
 def get_all_lots():
     all_lots = ParkingLot.query.all()    
     if not all_lots:
+        cache.clear()
         return jsonify({"msg": "Parking lots not found!"}), 404
     results = []    
     for lot in all_lots:
@@ -254,3 +262,71 @@ def booking_details(id):
         return jsonify({"msg": "User not found"}), 404
     _booking = Booking.query.filter_by(user_id=user.id, id=id) #status='occupied'
     return jsonify([booking.serialize() for booking in _booking])
+
+
+@app.route('/user/check_in/<int:booking_id>', methods=["POST"])
+@jwt_required()
+def check_in(booking_id):
+    cache.clear()
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    booking = Booking.query.filter_by(id=booking_id, user_id=user.id).first()
+    if not booking:
+        return jsonify({"msg": "Booking not found"}), 404
+    if booking.check_in_time:
+        return jsonify({"msg": "Already checked in!"}), 400
+    booking.check_in_time = datetime.now()
+    booking.status = 'occupied'
+    spot = ParkingSpot.query.filter_by(spot_number=booking.spot_id, status='available', lot_id=booking.lot_id).first()
+    if spot:
+        spot.status = 'occupied'
+    else:
+        return jsonify({"msg": "Spot not available for check-in!"}), 404
+    db.session.flush()
+    reserved_spot = ReserveParkingSpot(spot_id=booking.spot_id, lot_id=spot.lot_id, user_id=user.id, vehicle_number=booking.vehicle_number, parking_timestamp=datetime.now())
+    db.session.add(reserved_spot)
+    db.session.commit()
+    return jsonify({"msg": "Check-in successful!"})
+
+
+@app.route('/user/check_out/<int:booking_id>', methods=["POST"])
+@jwt_required()
+def check_out(booking_id):
+    cache.clear()
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    booking = Booking.query.filter_by(id=booking_id, user_id=user.id).first()
+    if not booking:
+        return jsonify({"msg": "Booking not found"}), 404
+    if booking.check_out_time:
+        return jsonify({"msg": "Already checked out!"}), 400
+    booking.check_out_time = datetime.now()
+    booking.status = 'completed'
+    booking.total_cost = math.ceil(((booking.check_out_time - booking.check_in_time).total_seconds() / 3600)) * 80
+    spot = ParkingSpot.query.filter_by(spot_number=booking.spot_id, status='occupied', lot_id=booking.lot_id).first()
+    if spot:
+        spot.status = 'available'
+    db.session.flush()
+    # delete entry from ReserveParkingSpot
+    reserved_spot = ReserveParkingSpot.query.filter_by(spot_id=booking.spot_id, user_id=user.id, lot_id=spot.lot_id).first()
+    if reserved_spot:
+        db.session.delete(reserved_spot)
+    db.session.commit()
+    return jsonify({"msg": "Check-out successful!"})
+
+
+@app.route('/user/_cost/<int:booking_id>', methods=["GET"])
+@jwt_required()
+def booking_cost(booking_id):
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    booking = Booking.query.filter_by(id=booking_id, user_id=user.id).first()
+    if not booking:
+        return jsonify({"msg": "Booking not found"}), 404
+    return jsonify({"total_cost": booking.total_cost})

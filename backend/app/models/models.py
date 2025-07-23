@@ -1,3 +1,4 @@
+from pyclbr import Class
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,6 +17,8 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default='user')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     bookings = db.relationship('Booking', back_populates='user', lazy=True)
+
+    reserved_spots = db.relationship('ReserveParkingSpot', back_populates='user', lazy=True) 
 
     def serialize(self):
         return {
@@ -72,6 +75,8 @@ class ParkingSpot(db.Model):
     status = db.Column(db.String(20), nullable=False, default='available')
     lot_id = db.Column(db.Integer, db.ForeignKey('parking_lot.id'), nullable=False)
     booking = db.relationship('Booking', back_populates='parking_spot', uselist=False, lazy=True)
+
+    reserved_spots = db.relationship('ReserveParkingSpot', back_populates='parking_spot', lazy=True)
 
     def serialize(self):
         return {
@@ -199,3 +204,16 @@ class Booking(db.Model):
             "spot_info": spot_info,
             "lot_info": lot_info
         }
+
+class ReserveParkingSpot(db.Model):
+    __tablename__ = 'reserved_spots'
+    id = db.Column(db.Integer, primary_key=True)
+    spot_id = db.Column(db.Integer, db.ForeignKey('parking_spot.id'), nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey('parking_lot.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    vehicle_number = db.Column(db.String(20), nullable=False)
+    parking_timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    parking_cost = db.Column(db.Float, nullable=True)
+
+    user = db.relationship('User', back_populates='reserved_spots')
+    parking_spot = db.relationship('ParkingSpot', back_populates='reserved_spots')
