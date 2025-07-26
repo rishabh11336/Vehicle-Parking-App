@@ -30,6 +30,7 @@ def user_profile():
 @app.route("/edit_user_profile", methods=["PATCH"])
 @jwt_required()
 def edit_user_profile():
+    cache.clear()
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
     if not user:
@@ -238,7 +239,7 @@ def check_booking(vehicle_number,lot_id,start_time,end_time):
     booking_check = Booking.query.filter_by(vehicle_number=vehicle_number,lot_id=lot_id)
     for book in booking_check:
         if (book.start_time < start_time) and (book.end_time > end_time):
-            return True  
+            return True
     return False        
 
 
