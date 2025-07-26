@@ -66,15 +66,29 @@ def book_slot(lot_id):
     cache.clear()
     data = request.get_json()
     vehicle_number = data['vehicle_number']
-    start_time_str = data["start_time"]
-    end_time_str = data["end_time"]
+    start_time_str = data["start_time"] if data["start_time"] else "00:00"
+    end_time_str = data["end_time"] if data["end_time"] else "23:59"
+    start_date_str = data["start_date"] if data["start_date"] else date.today()
+    end_date_str = data["end_date"] if data["end_date"] else start_date_str
+
     booking_date = date.today() 
+    
     start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    start_datetime = datetime.combine(start_date, start_time_obj)
+
     end_time_obj = datetime.strptime(end_time_str, '%H:%M').time()
-    start_datetime = datetime.combine(booking_date, start_time_obj)
-    end_datetime = datetime.combine(booking_date, end_time_obj)
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    end_datetime = datetime.combine(end_date, end_time_obj)
+
+    print("Start DateTime:", start_datetime)
+    print("End DateTime:", end_datetime)
+
+    if start_datetime > end_datetime:
+        return jsonify({"msg": "Start time must be before end time!"}), 400
 
     if start_datetime < datetime.now():
+        print(start_datetime, datetime.now())
         return jsonify({"msg": "Booking time must be in the future!"}), 400
 
     ### Check booking is a function available in a bottom
