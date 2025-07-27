@@ -319,9 +319,13 @@ def check_out(booking_id):
         return jsonify({"msg": "Booking not found"}), 404
     if booking.check_out_time:
         return jsonify({"msg": "Already checked out!"}), 400
+    
+    lot_cost = ParkingLot.query.filter_by(id=booking.lot_id).first().price_per_hour
+
     booking.check_out_time = datetime.now()
     booking.status = 'completed'
-    booking.total_cost = math.ceil(((booking.check_out_time - booking.check_in_time).total_seconds() / 3600)) * 80
+    booking.total_cost = math.ceil(((booking.check_out_time - booking.check_in_time).total_seconds() / 3600)) * lot_cost
+    db.session.flush()
     spot = ParkingSpot.query.filter_by(spot_number=booking.spot_id, status='occupied', lot_id=booking.lot_id).first()
     if spot:
         spot.status = 'available'
