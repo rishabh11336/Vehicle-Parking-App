@@ -88,7 +88,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="costModalLabel">Payment Summary</h5>
-            <button type="button" class="btn-close" @click="showCostModal = false" aria-label="Close"></button>
+            <button type="button" class="btn-close" @click="closeModalAndRedirect" aria-label="Close"></button>
           </div>
           <div class="modal-body text-center">
             <p class="fs-4">Your total payable amount is:</p>
@@ -96,7 +96,7 @@
             <p class="text-muted mt-3">Thank you for using our parking service!</p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-primary" @click="showCostModal = false">OK</button>
+            <button type="button" class="btn btn-primary" @click="closeModalAndRedirect">OK</button>
           </div>
         </div>
       </div>
@@ -264,6 +264,11 @@ export default {
         console.error("Error formatting time:", e);
         return 'Error';
       }
+    },
+
+    closeModalAndRedirect() {
+      this.showCostModal = false; // Hide the modal
+      this.$router.push('/user/dashboard'); // Redirect to user dashboard
     },
 
     async handleAction(actionType) {

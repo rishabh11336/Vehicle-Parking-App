@@ -1,5 +1,5 @@
 from app.app import app
-from app.models.models import db,User,ParkingLot,ParkingSpot
+from app.models.models import db,User,ParkingLot,ParkingSpot, ReserveParkingSpot
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask import request, jsonify
@@ -132,7 +132,34 @@ def get_all_spot(lot_id):
             return jsonify({"msg": "Parking lot not found."}), 404
         else:
             return jsonify({"msg": "This parking lot has no spots."}), 200
-    return jsonify([spot.serialize() for spot in spots_in_lot]), 200
+    res = []
+
+
+    for spot in spots_in_lot:
+        if spot.status == 'occupied':
+            res_spot = ReserveParkingSpot.query.filter_by(spot_id=spot.spot_number).first()
+            if not res_spot:
+                print(f"Spot {spot.id} is occupied but no reservation found.")
+            res.append({
+            "id": spot.id,
+            "lot_id": spot.lot_id,
+            "spot_number": spot.spot_number,
+            "status": spot.status,
+            "Vehicle": res_spot.vehicle_number,
+            "User": res_spot.user_id
+        })
+        else:
+            res.append({
+                "id": spot.id,
+                "lot_id": spot.lot_id,
+                "spot_number": spot.spot_number,
+                "status": spot.status,
+                "Vehicle": 'N/A',
+                "User": 'N/A'
+            })
+
+    return jsonify(res), 200
+    # return jsonify([spot.serialize() for spot in spots_in_lot]), 200
 
 
 

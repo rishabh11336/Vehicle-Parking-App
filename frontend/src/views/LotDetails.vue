@@ -3,14 +3,12 @@
     <Navbar />
 
     <div class="container my-5">
-      <!-- Back to Dashboard Link -->
       <div class="mb-4">
         <router-link to="/admin/dashboard" class="text-decoration-none text-primary fw-semibold">
           <i class="bi bi-arrow-left-circle me-2"></i>Back to Admin Dashboard
         </router-link>
       </div>
 
-      <!-- Loading and Error States -->
       <div v-if="isLoading" class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
           <span class="visually-hidden">Loading...</span>
@@ -19,15 +17,11 @@
       </div>
       <div v-else-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
 
-      <!-- Main Content -->
       <div v-else>
-        <!-- ============================================= -->
-        <!-- SECTION 1: LOT HEADER & STATS                 -->
-        <!-- ============================================= -->
         <section class="mb-5">
           <h2 class="fw-bold">{{ lotDetails.lot_name }}</h2>
           <p class="text-muted">{{ lotDetails.address }}</p>
-          
+
           <div class="row gy-3 mt-3">
             <div class="col-md-3">
               <div class="card p-2 text-center shadow-sm">
@@ -56,9 +50,6 @@
           </div>
         </section>
 
-        <!-- ============================================= -->
-        <!-- SECTION 2: PARKING SPOTS GRID                 -->
-        <!-- ============================================= -->
         <section class="parking-spots-grid">
           <div class="card p-4">
               <h4 class="fw-semibold mb-3">Parking Spot Status</h4>
@@ -66,11 +57,11 @@
               <div v-if="!parkingSpots.length" class="alert alert-secondary">This parking lot has no spots to display.</div>
               <div v-else class="row g-3">
                   <div v-for="spot in parkingSpots" :key="spot.id" class="col-6 col-sm-4 col-md-3 col-lg-2">
-                      <div 
+                      <div
                           class="spot-box text-center p-3 rounded"
-                          :class="{ 
-                              'bg-success-subtle text-success-emphasis': spot.status === 'available', 
-                              'bg-danger-subtle text-danger-emphasis': spot.status === 'occupied' 
+                          :class="{
+                              'bg-success-subtle text-success-emphasis': spot.status === 'available',
+                              'bg-danger-subtle text-danger-emphasis': spot.status === 'occupied'
                           }"
                           @click="showSpotDetails(spot)"
                       >
@@ -158,9 +149,9 @@ export default {
     },
     showSpotDetails(spot) {
       if (spot.status === 'occupied') {
-        // This assumes your spot.serialize() method includes booking details
-        const vehicle = spot.booking?.vehicle_number || 'N/A';
-        const user = spot.booking?.user_full_name || 'N/A';
+        // Corrected: Access Vehicle and User directly from the spot object
+        const vehicle = spot.Vehicle || 'N/A';
+        const user = spot.User || 'N/A';
         alert(`Spot: ${spot.spot_number}\nStatus: Occupied\nVehicle: ${vehicle}\nUser: ${user}`);
       } else {
         alert(`Spot: ${spot.spot_number}\nStatus: Available`);
@@ -168,8 +159,6 @@ export default {
     }
   },
   created() {
-    // --- THIS IS THE CHANGE ---
-    // The component now fetches real data from the API when it's created.
     const lotId = this.$route.params.id;
     if (lotId) {
       this.fetchLotAndSpotDetails(lotId);

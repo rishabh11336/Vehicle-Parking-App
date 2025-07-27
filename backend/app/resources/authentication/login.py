@@ -21,6 +21,7 @@ def login():
     access_token = create_access_token(identity=user.email)
     # Get user roles
     roles = user.role
+    print(email, roles)
     return jsonify({
         'message': 'Login successful',
         'access_token': access_token,
