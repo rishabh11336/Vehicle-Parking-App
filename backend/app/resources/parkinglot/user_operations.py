@@ -57,6 +57,16 @@ def user_bookings():
     return jsonify([booking.serialize() for booking in user_bookings])
 
 
+def check_duplicate_booking(vehicle_number,lot_id,start_time,end_time):
+    print("Checking booking for vehicle:", vehicle_number, "in lot:", lot_id)
+    booking_check = Booking.query.filter_by(vehicle_number=vehicle_number,lot_id=lot_id).all()
+    print("Found bookings:", len(booking_check), booking_check)
+    for book in booking_check:
+        print("Checking booking:", book.start_time, book.end_time)
+        if (book.start_time <= start_time) and (book.end_time >= end_time):
+            return True
+    return False
+
 @app.route("/book_slot/<int:lot_id>",methods=["POST"])
 @jwt_required()
 def book_slot(lot_id):
@@ -91,8 +101,11 @@ def book_slot(lot_id):
         print(start_datetime, datetime.now())
         return jsonify({"msg": "Booking time must be in the future!"}), 400
 
-    ### Check booking is a function available in a bottom
-    check = check_booking(lot_id, vehicle_number, start_datetime, end_datetime)
+    ### Check duplicate booking is a function available above
+    check = check_duplicate_booking(vehicle_number, lot_id, start_datetime, end_datetime)
+
+    print("Check Booking:", check)
+
     if check:
         return jsonify({"msg": "Another booking already exists!"}), 404
     park_spot = ParkingSpot.query.filter_by(lot_id = lot_id, status="available")
@@ -111,7 +124,7 @@ def book_slot(lot_id):
                       end_time = end_datetime,
                       check_in_time = None,
                       check_out_time = None,
-                      total_cost = 80,
+                      total_cost = ParkingLot.query.filter_by(id=lot_id).first().price_per_hour,
                       status = "Active",
                       user_id = current_user.id,
                       lot_id = lot_id,
@@ -246,15 +259,7 @@ def get_single_lot(lot_id,spot_id):
         "spot_number" : spot.spot_number,
         "status" : spot.status
     }
-    return jsonify(spot_data)
-
-
-def check_booking(vehicle_number,lot_id,start_time,end_time):
-    booking_check = Booking.query.filter_by(vehicle_number=vehicle_number,lot_id=lot_id)
-    for book in booking_check:
-        if (book.start_time < start_time) and (book.end_time > end_time):
-            return True
-    return False        
+    return jsonify(spot_data)        
 
 
 @app.route("/user_summary", methods=["GET"])
