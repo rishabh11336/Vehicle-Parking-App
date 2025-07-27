@@ -10,7 +10,7 @@ from flask import request, jsonify
 
 @app.route("/view_lot/<int:lot_id>", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+@cache.cached(timeout=10, query_string=True)
 def veiw_lot(lot_id):
     infos = ParkingSpot.query.filter_by(lot_id=lot_id)
     return jsonify([info.serialize() for info in infos])
@@ -18,7 +18,7 @@ def veiw_lot(lot_id):
 
 @app.route("/user_profile", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+# @cache.cached(timeout=10, query_string=True)
 def user_profile():
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -47,7 +47,7 @@ def edit_user_profile():
 
 @app.route("/user_bookings", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+@cache.cached(timeout=10, query_string=True)
 def user_bookings():
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -236,7 +236,7 @@ def get_all_lots():
 
 @app.route("/parking_spot/<int:lot_id>/<int:spot_id>", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+@cache.cached(timeout=10, query_string=True)
 def get_single_lot(lot_id,spot_id):
     spot = ParkingSpot.query.filter_by(lot_id = lot_id,spot_number = spot_id).first()
     if not spot:

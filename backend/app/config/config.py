@@ -12,4 +12,4 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     CACHE_TYPE= 'RedisCache'
     CACHE_REDIS_URL= 'redis://localhost:6379/3'
-    CACHE_DEFAULT_TIMEOUT= 300    
+    CACHE_DEFAULT_TIMEOUT= 10
