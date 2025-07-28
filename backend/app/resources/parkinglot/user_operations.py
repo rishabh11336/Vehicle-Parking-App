@@ -18,7 +18,6 @@ def veiw_lot(lot_id):
 
 @app.route("/user_profile", methods=["GET"])
 @jwt_required()
-# @cache.cached(timeout=10, query_string=True)
 def user_profile():
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()

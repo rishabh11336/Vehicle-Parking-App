@@ -4,7 +4,7 @@
 
 # SMTP_HOST = "localhost"
 # SMTP_PORT = 1025
-# SENDER_EMAIL = 'emart@mail.com'
+# SENDER_EMAIL = 'support@vparking.com'
 # SENDER_PASSWORD = ''
 
 
