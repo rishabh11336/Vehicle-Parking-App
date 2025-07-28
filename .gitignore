@@ -12,5 +12,3 @@ venv/
 # Node.js
 node_modules/
 
-# Requirements
-requirements.txt
