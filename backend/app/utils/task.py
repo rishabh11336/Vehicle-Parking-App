@@ -1,23 +1,31 @@
-# from celery import shared_task, Celery
-# from app.models.models import User, ParkingLot, ParkingSpot, Booking, ReserveParkingSpot
-# from app.utils.mail_service import send_email
-# from jinja2 import Template
-# from datetime import datetime
-# import csv,os
-# from app.utils.templates import create_html_reminder, create_html_report, google_chat_webhook
+from celery import shared_task, Celery
+from app.models.models import User, ParkingLot, ParkingSpot, Booking, ReserveParkingSpot
+from app.utils.mail_service import send_email
+from jinja2 import Template
+from datetime import datetime, timedelta, timezone
+import csv,os
+from app.utils.templates import create_html_reminder, create_html_report, google_chat_webhook
 
 
-# @shared_task(ignore_result=True)
-# def daily_reminders():
-#     current_date_str = datetime.now().strftime('%Y-%m-%d')
-#     orders = Order.query.filter(Order.dateCreated.like(current_date_str + '%')).all()
-#     order_user_ids = {order.user_id for order in orders}
+@shared_task(ignore_result=True)
+def daily_reminders():
+    utc_now = datetime.now(timezone.utc)
 
-#     for user in User.query.filter_by(role='user').all():
-#         if user.id not in order_user_ids:
-#             html_reminder = create_html_reminder(user)
-#             send_email(user.email, 'Reminder', html_reminder)
-#             google_chat_webhook(user.username)
+    # Determine the start of the current day in UTC.
+    today_start_utc = utc_now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    orders = Booking.query.filter(Booking.booking_time > today_start_utc).all()
+
+    order_user_ids = {order.user_id for order in orders}
+
+
+
+    for user in User.query.filter_by(role='user').all():
+        print(user.full_name)
+        if user.id not in order_user_ids:
+            # html_reminder = create_html_reminder(user)
+            # send_email(user.email, 'Reminder', html_reminder)
+            google_chat_webhook(user.full_name)
             
 
 
