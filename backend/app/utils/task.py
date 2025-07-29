@@ -23,8 +23,8 @@ def daily_reminders():
     for user in User.query.filter_by(role='user').all():
         print(user.full_name)
         if user.id not in order_user_ids:
-            # html_reminder = create_html_reminder(user)
-            # send_email(user.email, 'Reminder', html_reminder)
+            html_reminder = create_html_reminder(user)
+            send_email(user.email, 'Reminder', html_reminder)
             google_chat_webhook(user.full_name)
             
 

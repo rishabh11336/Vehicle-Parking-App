@@ -29,7 +29,7 @@ def create_html_report(user, orders, total_expenditure):
         <div class="header">
             
             <img src="https://github.com/rishabh11336/Mad-2-Backend/blob/main/Emart-logo.jpg?raw=true" alt="E-MArt Logo" style="max-width: 100px;"/>
-            <h2>E-Mart Monthly Activity Report</h2>
+            <h2>Vehicle Parking App Monthly Activity Report</h2>
         </div>
         <div class="content">
             <p>Dear {{ user.full_name | upper  }},</p>
@@ -54,7 +54,7 @@ def create_html_report(user, orders, total_expenditure):
             <p><strong>Total:</strong> ₹{{ total_expenditure }}</p>
         </div>
         <div class="footer">
-            <p>Thank you for shopping with E-Mart.</p>
+            <p>Thank you for vist at Vehicle Parking App.</p>
         </div>
     </div>
 </body>
@@ -89,14 +89,14 @@ def create_html_reminder(user):
     <div class="container">
         <div class="header">
             <img src="https://github.com/rishabh11336/Mad-2-Backend/blob/main/Emart-logo.jpg?raw=true" alt="E-Mart Logo" style="max-width: 100px;"/>
-            <h2>E-Mart Reminder</h2>
+            <h2>Vehicle Parking App Reminder</h2>
         </div>
         <div class="content">
             <p>Dear {{ user.full_name | upper  }},</p>
-            <p>You have not visited our store today. Please visit us soon.</p>
+            <p>You have not visited our Parking today. Please visit us soon.</p>
         </div>
         <div class="footer">
-            <p>Thank you for shopping with E-Mart.</p>
+            <p>Thank you for vist at Vehicle Parking App.</p>
         </div>
     </div>
 </body>
@@ -115,7 +115,7 @@ def google_chat_webhook(user):
 
     username = user
 
-    card_message = {"text": "Hello " + username + ",\nYou have not visited our store today. Please visit us soon."}
+    card_message = {"text": "Hello " + username + ",\nYou have not visited our Parking today. Please visit us soon."}
 
     message_headers = {"Content-Type": "application/json; charset=UTF-8"}
 
